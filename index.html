@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Execution Visualization — Cycle-Accurate Simulation</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Times New Roman', 'Georgia', serif;
+            background: #ffffff;
+            min-height: 100vh;
+            color: #1a1a1a;
+            padding: 20px 40px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 8px;
+            color: #1a1a1a;
+            font-weight: 400;
+            font-size: 1.8rem;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-style: italic;
+            font-size: 0.95rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #fafafa;
+            border-radius: 4px;
+            padding: 16px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .panel.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .panel h2 {
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #333;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 6px;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        /* Controls */
+        .controls {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 16px 20px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .control-group label {
+            font-size: 0.8rem;
+            color: #555;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-weight: 500;
+            min-width: 65px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-value {
+            min-width: 36px;
+            text-align: center;
+            font-family: 'Monaco', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #2563eb;
+            background: #eff6ff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #dbeafe;
+        }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100px;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]:hover {
+            background: #d1d5db;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #2563eb;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            transition: all 0.15s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #1d4ed8;
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:active {
+            transform: scale(0.95);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #2563eb;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            transition: all 0.15s ease;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            background: #1d4ed8;
+            transform: scale(1.1);
+        }
+
+        input[type="range"]::-moz-range-track {
+            background: #e5e7eb;
+            border-radius: 3px;
+            height: 6px;
+        }
+
+        button {
+            background: #2563eb;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-size: 0.85rem;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            background: #ccc;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: #fff;
+            color: #333;
+            border: 1px solid #ccc;
+        }
+
+        button.secondary:hover {
+            background: #f5f5f5;
+        }
+
+        /* Matrix Display */
+        .matrices-row {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            flex-wrap: wrap;
+        }
+
+        .matrix-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .matrix-label {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-size: 1rem;
+            font-style: italic;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .matrix {
+            display: grid;
+            gap: 1px;
+            background: #999;
+            padding: 1px;
+            border: 2px solid #333;
+        }
+
+        .matrix-cell {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 500;
+            font-family: 'Monaco', 'Menlo', monospace;
+            transition: all 0.2s;
+        }
+
+        .matrix-cell.idle { background: #fff; color: #333; }
+        .matrix-cell.processing { background: #fecaca; color: #991b1b; box-shadow: inset 0 0 0 2px #ef4444; }
+        .matrix-cell.completed { background: #d1fae5; color: #065f46; }
+        .matrix-cell.queued { background: #fef3c7; color: #92400e; }
+
+        .result-cell {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 500;
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #f5f5f5;
+            color: #999;
+        }
+
+        .result-cell.computed {
+            background: #dbeafe;
+            color: #1e40af;
+            font-weight: 600;
+        }
+
+        /* Grid Visualization */
+        .grid-container {
+            display: grid;
+            gap: 24px;
+            justify-content: center;
+            padding: 16px 8px 8px 8px;
+        }
+
+        .thread-block {
+            border: 1px solid #999;
+            border-radius: 2px;
+            padding: 4px;
+            display: grid;
+            gap: 1px;
+            transition: all 0.3s;
+            position: relative;
+            background: #fff;
+        }
+
+        .thread-block.active {
+            border-color: #dc2626;
+            box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+            background: #fef2f2;
+        }
+
+        .thread-block.completed {
+            border-color: #059669;
+            background: #ecfdf5;
+        }
+
+        .thread-block-label {
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.5rem;
+            color: #888;
+            white-space: nowrap;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .thread {
+            width: 8px;
+            height: 8px;
+            border-radius: 1px;
+            transition: all 0.2s;
+            border: 1px solid #ddd;
+        }
+
+        .thread.idle { background: #f5f5f5; }
+        .thread.active { background: #ef4444; border-color: #dc2626; }
+        .thread.completed { background: #10b981; border-color: #059669; }
+
+        /* SM Visualization */
+        .sm-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .sm-unit {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .sm-unit.active {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .sm-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .sm-blocks {
+            font-size: 0.65rem;
+            color: #666;
+        }
+
+        .warp-schedulers {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .warp-scheduler {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 6px;
+            background: #f8f8f8;
+            border-radius: 3px;
+            border: 1px solid #eee;
+        }
+
+        .warp-scheduler.active {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .warp-scheduler-label {
+            font-size: 0.6rem;
+            color: #888;
+            font-family: 'Monaco', monospace;
+        }
+
+        .warp-threads {
+            display: flex;
+            gap: 1px;
+            flex-wrap: wrap;
+            max-width: 130px;
+        }
+
+        .warp-thread {
+            width: 5px;
+            height: 5px;
+            border-radius: 1px;
+            background: #e5e5e5;
+        }
+
+        .warp-thread.active { background: #ef4444; }
+        .warp-thread.completed { background: #10b981; }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .stat {
+            background: #fff;
+            padding: 10px;
+            border-radius: 2px;
+            text-align: center;
+            border: 1px solid #e5e5e5;
+        }
+
+        .stat-value {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #2563eb;
+            font-family: 'Monaco', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            color: #666;
+            margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        /* Legend */
+        .legend {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            padding: 8px 0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 2px;
+            border: 1px solid #ccc;
+        }
+
+        .legend-color.idle { background: #fff; }
+        .legend-color.queued { background: #fef3c7; }
+        .legend-color.processing { background: #fecaca; }
+        .legend-color.completed { background: #d1fae5; }
+
+        /* Kernel Code Display */
+        .kernel-code {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 12px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 0.7rem;
+            line-height: 1.4;
+            overflow-x: auto;
+            margin: 0;
+        }
+
+        .kernel-code .highlight-line {
+            background: rgba(255, 213, 0, 0.15);
+            display: inline;
+            padding: 1px 3px;
+            border-left: 2px solid #ffd500;
+            margin-left: -3px;
+        }
+
+        /* Explanation Panel */
+        .explanation {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .explanation h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin: 12px 0 6px 0;
+            color: #1a1a1a;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .explanation h3:first-child {
+            margin-top: 0;
+        }
+
+        .explanation ul {
+            margin-left: 20px;
+            margin-bottom: 8px;
+        }
+
+        .explanation li {
+            margin-bottom: 4px;
+        }
+
+        .explanation code {
+            background: #f0f0f0;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-family: 'Monaco', monospace;
+            font-size: 0.8rem;
+        }
+
+        .explanation .note {
+            background: #fffbeb;
+            border-left: 3px solid #f59e0b;
+            padding: 8px 12px;
+            margin: 10px 0;
+            font-size: 0.85rem;
+        }
+
+        /* Cycle Display */
+        .cycle-display {
+            background: #1e1e1e;
+            color: #4ade80;
+            padding: 8px 12px;
+            border-radius: 3px;
+            font-family: 'Monaco', monospace;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+        }
+
+        /* Info panel */
+        .info-panel {
+            grid-column: 1 / -1;
+            background: #f8f8f8;
+            padding: 12px 16px;
+            border-radius: 2px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            border: 1px solid #e5e5e5;
+        }
+
+        .info-panel code {
+            color: #2563eb;
+            background: #eff6ff;
+            padding: 1px 4px;
+            border-radius: 2px;
+        }
+
+        .execution-log {
+            max-height: 100px;
+            overflow-y: auto;
+            margin-top: 8px;
+            padding: 8px;
+            background: #fff;
+            border-radius: 2px;
+            border: 1px solid #e5e5e5;
+        }
+
+        .log-entry {
+            font-size: 0.65rem;
+            color: #666;
+            padding: 1px 0;
+        }
+
+        .log-entry.highlight {
+            color: #dc2626;
+            font-weight: 500;
+        }
+
+        /* Operation Display */
+        .operation-display {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.8rem;
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 2px;
+            padding: 12px;
+            min-height: 50px;
+        }
+
+        .operation-idle {
+            color: #999;
+            font-style: italic;
+        }
+
+        .operation-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 12px;
+        }
+
+        .operation-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 6px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 3px;
+            font-size: 0.7rem;
+        }
+
+        .operation-item .thread-id { color: #666; font-size: 0.6rem; }
+        .operation-item .op-input { color: #991b1b; font-weight: 600; }
+        .operation-item .op-output { color: #1e40af; font-weight: 600; }
+
+        .operation-summary {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+            font-size: 0.7rem;
+            color: #666;
+        }
+
+        /* Responsive */
+        @media (max-width: 1000px) {
+            .container { grid-template-columns: 1fr; }
+            .matrices-row { gap: 30px; }
+        }
+    </style>
+</head>
+<body>
+    <h1>GPU Kernel Execution — Cycle-Accurate Simulation</h1>
+    <p class="subtitle">Visualizing CUDA execution: Streaming Multiprocessors, Warp Schedulers, and Thread Blocks</p>
+
+    <div class="container">
+        <!-- Controls -->
+        <div class="controls panel">
+            <div class="control-group">
+                <label>Matrix:</label>
+                <div class="slider-container">
+                    <input type="range" id="matrixSize" min="4" max="12" value="8">
+                    <span class="slider-value" id="matrixSizeValue">8×8</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>Block:</label>
+                <div class="slider-container">
+                    <input type="range" id="blockSize" min="2" max="8" value="4">
+                    <span class="slider-value" id="blockSizeValue">4×4</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>SMs:</label>
+                <div class="slider-container">
+                    <input type="range" id="numSMs" min="1" max="4" value="2">
+                    <span class="slider-value" id="numSMsValue">2</span>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>Warps/SM:</label>
+                <div class="slider-container">
+                    <input type="range" id="warpsPerSM" min="1" max="4" value="2">
+                    <span class="slider-value" id="warpsPerSMValue">2</span>
+                </div>
+            </div>
+            <button id="startBtn">▶ Start</button>
+            <button id="stepBtn" class="secondary">Cycle</button>
+            <button id="resetBtn" class="secondary">Reset</button>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+            <div class="legend-item"><div class="legend-color idle"></div><span>Idle</span></div>
+            <div class="legend-item"><div class="legend-color queued"></div><span>Queued</span></div>
+            <div class="legend-item"><div class="legend-color processing"></div><span>Executing</span></div>
+            <div class="legend-item"><div class="legend-color completed"></div><span>Completed</span></div>
+        </div>
+
+        <!-- Input and Output Matrices -->
+        <div class="matrices-row">
+            <div class="matrix-panel">
+                <div class="matrix-label">Input Matrix <em>A</em></div>
+                <div class="matrix" id="matrix"></div>
+            </div>
+            <div class="matrix-panel">
+                <div class="matrix-label">Output Matrix <em>B = f(A)</em></div>
+                <div class="matrix" id="resultMatrix"></div>
+            </div>
+        </div>
+
+        <!-- Grid Panel -->
+        <div class="panel">
+            <h2>Thread Blocks Grid</h2>
+            <div class="grid-container" id="gridContainer"></div>
+        </div>
+
+        <!-- SM Panel -->
+        <div class="panel">
+            <h2>Streaming Multiprocessors</h2>
+            <div class="sm-container" id="smContainer"></div>
+        </div>
+
+        <!-- Stats Panel -->
+        <div class="panel">
+            <h2>Execution Statistics</h2>
+            <div class="cycle-display">Cycle: <span id="currentCycle">0</span></div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="totalThreads">0</div>
+                    <div class="stat-label">Total Threads</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="activeWarps">0</div>
+                    <div class="stat-label">Active Warps</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="completedCells">0</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kernel Code Panel -->
+        <div class="panel">
+            <h2>CUDA Kernel</h2>
+            <pre class="kernel-code"><code>__global__ void transform(
+    const int* A, int* B, int N) {
+  int col = blockIdx.x * blockDim.x + threadIdx.x;
+  int row = blockIdx.y * blockDim.y + threadIdx.y;
+  if (row < N && col < N) {
+    int idx = row * N + col;
+    <span class="highlight-line">B[idx] = A[idx] * 2 + 1;</span>
+  }
+}</code></pre>
+        </div>
+
+        <!-- Current Operation Panel -->
+        <div class="panel full-width">
+            <h2>Current Cycle Operations</h2>
+            <div class="operation-display" id="operationDisplay">
+                <div class="operation-idle">Press Start or Cycle to begin execution</div>
+            </div>
+        </div>
+
+        <!-- Explanation Panel -->
+        <div class="panel full-width">
+            <h2>How This Simulation Works</h2>
+            <div class="explanation" id="explanationPanel">
+                <h3>GPU Architecture Concepts</h3>
+                <ul>
+                    <li><strong>Streaming Multiprocessors (SMs)</strong>: Independent processing units on the GPU. Each SM can execute multiple thread blocks. Configured: <code id="smCount">2</code> SMs.</li>
+                    <li><strong>Warp Schedulers</strong>: Each SM has multiple warp schedulers that can issue instructions to warps each cycle. Configured: <code id="warpSchedCount">2</code> per SM.</li>
+                    <li><strong>Warps</strong>: Groups of 32 threads that execute in SIMT (Single Instruction, Multiple Threads) fashion. All threads in a warp execute the same instruction simultaneously.</li>
+                    <li><strong>Thread Blocks</strong>: Logical groupings of threads. Each block is assigned to one SM and cannot migrate. Block size: <code id="blockSizeInfo">4×4 = 16 threads</code>.</li>
+                </ul>
+
+                <h3>Cycle-Accurate Execution Model</h3>
+                <ul>
+                    <li><strong>Each cycle</strong>: Every warp scheduler in every active SM can execute one warp (up to 32 threads).</li>
+                    <li><strong>Block assignment</strong>: Blocks are assigned to SMs in round-robin fashion. An SM processes all warps in its assigned blocks before getting new ones.</li>
+                    <li><strong>Warp formation</strong>: Threads within a block are grouped into warps of 32. A 4×4 block (16 threads) = 1 warp. An 8×8 block (64 threads) = 2 warps.</li>
+                    <li><strong>Parallel execution</strong>: With 2 SMs × 2 warp schedulers = <code id="parallelWarps">4</code> warps can execute per cycle = up to <code id="parallelThreads">128</code> threads.</li>
+                </ul>
+
+                <div class="note">
+                    <strong>Note:</strong> This is a simplified model. Real GPUs have additional complexities: memory latency hiding, occupancy limits, shared memory constraints, register pressure, and instruction-level parallelism within warps.
+                </div>
+
+                <h3>What You're Seeing</h3>
+                <ul>
+                    <li><strong>Matrix cells turn red</strong>: Threads are currently executing the computation for those elements.</li>
+                    <li><strong>SM panel shows active warps</strong>: Each small square represents a thread slot; red = executing this cycle.</li>
+                    <li><strong>Grid shows block status</strong>: Which blocks are assigned to SMs and their completion state.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="info-panel">
+            <strong>Kernel Launch:</strong> <code>transform<<<gridDim, blockDim>>>(A, B, N)</code> | 
+            <strong>Grid:</strong> <span id="gridInfo">2×2 blocks</span> | 
+            <strong>Block:</strong> <span id="blockInfo">4×4 threads</span>
+            <div class="execution-log" id="executionLog">
+                <div class="log-entry">Ready to start simulation...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // GPU Configuration
+        const GPU_CONFIG = {
+            WARP_SIZE: 32,
+            THREADS_PER_CYCLE_PER_WARP: 32  // All threads in a warp execute together
+        };
+
+        // State
+        let state = {
+            matrixSize: 8,
+            blockSize: 4,
+            numSMs: 2,
+            warpsPerSM: 2,
+            isRunning: false,
+            currentCycle: 0,
+            matrix: [],
+            result: [],
+            blocks: [],
+            sms: [],
+            animationId: null
+        };
+
+        // DOM Elements
+        const elements = {
+            matrix: document.getElementById('matrix'),
+            resultMatrix: document.getElementById('resultMatrix'),
+            gridContainer: document.getElementById('gridContainer'),
+            smContainer: document.getElementById('smContainer'),
+            matrixSize: document.getElementById('matrixSize'),
+            matrixSizeValue: document.getElementById('matrixSizeValue'),
+            blockSize: document.getElementById('blockSize'),
+            blockSizeValue: document.getElementById('blockSizeValue'),
+            numSMs: document.getElementById('numSMs'),
+            numSMsValue: document.getElementById('numSMsValue'),
+            warpsPerSM: document.getElementById('warpsPerSM'),
+            warpsPerSMValue: document.getElementById('warpsPerSMValue'),
+            startBtn: document.getElementById('startBtn'),
+            stepBtn: document.getElementById('stepBtn'),
+            resetBtn: document.getElementById('resetBtn'),
+            totalThreads: document.getElementById('totalThreads'),
+            activeWarps: document.getElementById('activeWarps'),
+            completedCells: document.getElementById('completedCells'),
+            currentCycle: document.getElementById('currentCycle'),
+            executionLog: document.getElementById('executionLog'),
+            operationDisplay: document.getElementById('operationDisplay'),
+            gridInfo: document.getElementById('gridInfo'),
+            blockInfo: document.getElementById('blockInfo'),
+            smCount: document.getElementById('smCount'),
+            warpSchedCount: document.getElementById('warpSchedCount'),
+            blockSizeInfo: document.getElementById('blockSizeInfo'),
+            parallelWarps: document.getElementById('parallelWarps'),
+            parallelThreads: document.getElementById('parallelThreads')
+        };
+
+        function init() {
+            state.matrixSize = parseInt(elements.matrixSize.value);
+            state.blockSize = parseInt(elements.blockSize.value);
+            state.numSMs = parseInt(elements.numSMs.value);
+            state.warpsPerSM = parseInt(elements.warpsPerSM.value);
+            state.currentCycle = 0;
+            state.isRunning = false;
+            
+            // Initialize matrix and result
+            state.matrix = [];
+            state.result = [];
+            for (let i = 0; i < state.matrixSize * state.matrixSize; i++) {
+                state.matrix.push({
+                    value: Math.floor(Math.random() * 50),
+                    status: 'idle'
+                });
+                state.result.push({
+                    value: null,
+                    computed: false
+                });
+            }
+
+            // Create thread blocks with warps
+            const blocksPerRow = Math.ceil(state.matrixSize / state.blockSize);
+            state.blocks = [];
+            
+            for (let by = 0; by < blocksPerRow; by++) {
+                for (let bx = 0; bx < blocksPerRow; bx++) {
+                    const threads = [];
+                    for (let ty = 0; ty < state.blockSize; ty++) {
+                        for (let tx = 0; tx < state.blockSize; tx++) {
+                            const globalX = bx * state.blockSize + tx;
+                            const globalY = by * state.blockSize + ty;
+                            if (globalX < state.matrixSize && globalY < state.matrixSize) {
+                                threads.push({
+                                    localIdx: ty * state.blockSize + tx,
+                                    globalIdx: globalY * state.matrixSize + globalX,
+                                    status: 'idle'
+                                });
+                            }
+                        }
+                    }
+                    
+                    // Divide threads into warps
+                    const warps = [];
+                    for (let i = 0; i < threads.length; i += GPU_CONFIG.WARP_SIZE) {
+                        warps.push({
+                            threads: threads.slice(i, i + GPU_CONFIG.WARP_SIZE),
+                            status: 'idle'
+                        });
+                    }
+                    
+                    state.blocks.push({
+                        idx: by * blocksPerRow + bx,
+                        x: bx,
+                        y: by,
+                        warps: warps,
+                        assignedSM: null,
+                        status: 'idle'
+                    });
+                }
+            }
+
+            // Initialize SMs
+            state.sms = [];
+            for (let i = 0; i < state.numSMs; i++) {
+                state.sms.push({
+                    id: i,
+                    assignedBlocks: [],
+                    warpSchedulers: Array(state.warpsPerSM).fill(null).map(() => ({
+                        currentWarp: null
+                    }))
+                });
+            }
+
+            // Assign blocks to SMs (round-robin)
+            state.blocks.forEach((block, idx) => {
+                const smIdx = idx % state.numSMs;
+                block.assignedSM = smIdx;
+                state.sms[smIdx].assignedBlocks.push(block);
+            });
+
+            updateExplanation();
+            render();
+            updateStats();
+            
+            const bpr = Math.ceil(state.matrixSize / state.blockSize);
+            log(`Initialized: ${bpr}×${bpr} blocks, ${state.blocks.reduce((sum, b) => sum + b.warps.length, 0)} total warps`);
+        }
+
+        function compute(inputValue) {
+            return inputValue * 2 + 1;
+        }
+
+        function updateExplanation() {
+            const threadsPerBlock = state.blockSize * state.blockSize;
+            const warpsPerBlock = Math.ceil(threadsPerBlock / GPU_CONFIG.WARP_SIZE);
+            const totalWarpsPerCycle = state.numSMs * state.warpsPerSM;
+            
+            elements.smCount.textContent = state.numSMs;
+            elements.warpSchedCount.textContent = state.warpsPerSM;
+            elements.blockSizeInfo.textContent = `${state.blockSize}×${state.blockSize} = ${threadsPerBlock} threads (${warpsPerBlock} warp${warpsPerBlock > 1 ? 's' : ''})`;
+            elements.parallelWarps.textContent = totalWarpsPerCycle;
+            elements.parallelThreads.textContent = totalWarpsPerCycle * GPU_CONFIG.WARP_SIZE;
+            
+            const bpr = Math.ceil(state.matrixSize / state.blockSize);
+            elements.gridInfo.textContent = `${bpr}×${bpr} blocks`;
+            elements.blockInfo.textContent = `${state.blockSize}×${state.blockSize} threads`;
+        }
+
+        function step() {
+            state.currentCycle++;
+            
+            // First, complete any executing warps from previous cycle
+            state.blocks.forEach(block => {
+                block.warps.forEach(warp => {
+                    if (warp.status === 'executing') {
+                        warp.status = 'completed';
+                        warp.threads.forEach(t => {
+                            t.status = 'completed';
+                            state.matrix[t.globalIdx].status = 'completed';
+                            state.result[t.globalIdx].value = compute(state.matrix[t.globalIdx].value);
+                            state.result[t.globalIdx].computed = true;
+                        });
+                    }
+                });
+                
+                // Check if block is complete
+                if (block.warps.every(w => w.status === 'completed')) {
+                    block.status = 'completed';
+                }
+            });
+
+            // Clear warp schedulers
+            state.sms.forEach(sm => {
+                sm.warpSchedulers.forEach(ws => ws.currentWarp = null);
+            });
+
+            // Check if all done
+            if (state.blocks.every(b => b.status === 'completed')) {
+                render();
+                updateStats();
+                stop();
+                log('Kernel execution complete!', true);
+                return;
+            }
+
+            // Schedule warps for this cycle
+            let activeWarpsThisCycle = [];
+            
+            state.sms.forEach(sm => {
+                // Get pending warps from blocks assigned to this SM
+                const pendingWarps = [];
+                sm.assignedBlocks.forEach(block => {
+                    if (block.status !== 'completed') {
+                        block.status = 'active';
+                        block.warps.forEach((warp, warpIdx) => {
+                            if (warp.status === 'idle') {
+                                pendingWarps.push({ block, warp, warpIdx });
+                            }
+                        });
+                    }
+                });
+
+                // Assign warps to warp schedulers
+                sm.warpSchedulers.forEach((ws, wsIdx) => {
+                    if (pendingWarps.length > 0) {
+                        const { block, warp } = pendingWarps.shift();
+                        ws.currentWarp = { block, warp };
+                        warp.status = 'executing';
+                        warp.threads.forEach(t => {
+                            t.status = 'active';
+                            state.matrix[t.globalIdx].status = 'processing';
+                        });
+                        activeWarpsThisCycle.push({ sm, warp, block });
+                    }
+                });
+            });
+
+            const activeThreadCount = activeWarpsThisCycle.reduce((sum, w) => sum + w.warp.threads.length, 0);
+            log(`Cycle ${state.currentCycle}: ${activeWarpsThisCycle.length} warps, ${activeThreadCount} threads executing`);
+
+            render();
+            updateStats();
+        }
+
+        function render() {
+            renderMatrix();
+            renderResultMatrix();
+            renderGrid();
+            renderSMs();
+            renderOperations();
+        }
+
+        function renderMatrix() {
+            elements.matrix.innerHTML = '';
+            elements.matrix.style.gridTemplateColumns = `repeat(${state.matrixSize}, 32px)`;
+            
+            state.matrix.forEach((cell, idx) => {
+                const div = document.createElement('div');
+                div.className = `matrix-cell ${cell.status}`;
+                div.textContent = cell.value;
+                elements.matrix.appendChild(div);
+            });
+        }
+
+        function renderResultMatrix() {
+            elements.resultMatrix.innerHTML = '';
+            elements.resultMatrix.style.gridTemplateColumns = `repeat(${state.matrixSize}, 32px)`;
+            
+            state.result.forEach((cell, idx) => {
+                const div = document.createElement('div');
+                div.className = `result-cell ${cell.computed ? 'computed' : ''}`;
+                div.textContent = cell.value !== null ? cell.value : '—';
+                elements.resultMatrix.appendChild(div);
+            });
+        }
+
+        function renderGrid() {
+            elements.gridContainer.innerHTML = '';
+            const blocksPerRow = Math.ceil(state.matrixSize / state.blockSize);
+            elements.gridContainer.style.gridTemplateColumns = `repeat(${blocksPerRow}, auto)`;
+            
+            state.blocks.forEach(block => {
+                const blockDiv = document.createElement('div');
+                blockDiv.className = `thread-block ${block.status}`;
+                blockDiv.style.gridTemplateColumns = `repeat(${state.blockSize}, 8px)`;
+                
+                const label = document.createElement('div');
+                label.className = 'thread-block-label';
+                label.textContent = `B(${block.x},${block.y})→SM${block.assignedSM}`;
+                blockDiv.appendChild(label);
+                
+                // Render threads
+                for (let i = 0; i < state.blockSize * state.blockSize; i++) {
+                    const threadDiv = document.createElement('div');
+                    const thread = block.warps.flatMap(w => w.threads).find(t => t.localIdx === i);
+                    threadDiv.className = `thread ${thread ? thread.status : 'idle'}`;
+                    if (!thread) threadDiv.style.opacity = '0.3';
+                    blockDiv.appendChild(threadDiv);
+                }
+                
+                elements.gridContainer.appendChild(blockDiv);
+            });
+        }
+
+        function renderSMs() {
+            elements.smContainer.innerHTML = '';
+            
+            state.sms.forEach(sm => {
+                const smDiv = document.createElement('div');
+                const hasActiveWarps = sm.warpSchedulers.some(ws => ws.currentWarp);
+                smDiv.className = `sm-unit ${hasActiveWarps ? 'active' : ''}`;
+                
+                const assignedBlockIds = sm.assignedBlocks.map(b => `B${b.idx}`).join(', ');
+                smDiv.innerHTML = `
+                    <div class="sm-header">
+                        <span>SM ${sm.id}</span>
+                        <span class="sm-blocks">Blocks: ${assignedBlockIds}</span>
+                    </div>
+                    <div class="warp-schedulers" id="sm${sm.id}-schedulers"></div>
+                `;
+                elements.smContainer.appendChild(smDiv);
+                
+                const schedulersDiv = smDiv.querySelector(`#sm${sm.id}-schedulers`);
+                
+                sm.warpSchedulers.forEach((ws, wsIdx) => {
+                    const wsDiv = document.createElement('div');
+                    wsDiv.className = `warp-scheduler ${ws.currentWarp ? 'active' : ''}`;
+                    
+                    const label = document.createElement('div');
+                    label.className = 'warp-scheduler-label';
+                    label.textContent = ws.currentWarp 
+                        ? `WS${wsIdx}: B${ws.currentWarp.block.idx} warp` 
+                        : `WS${wsIdx}: idle`;
+                    wsDiv.appendChild(label);
+                    
+                    const threadsDiv = document.createElement('div');
+                    threadsDiv.className = 'warp-threads';
+                    
+                    for (let t = 0; t < GPU_CONFIG.WARP_SIZE; t++) {
+                        const threadDiv = document.createElement('div');
+                        const thread = ws.currentWarp?.warp.threads[t];
+                        threadDiv.className = `warp-thread ${thread?.status || ''}`;
+                        if (!thread && ws.currentWarp) threadDiv.style.opacity = '0.3';
+                        threadsDiv.appendChild(threadDiv);
+                    }
+                    
+                    wsDiv.appendChild(threadsDiv);
+                    schedulersDiv.appendChild(wsDiv);
+                });
+            });
+        }
+
+        function renderOperations() {
+            const executingThreads = state.blocks.flatMap(b => 
+                b.warps.filter(w => w.status === 'executing').flatMap(w => w.threads)
+            );
+            
+            if (executingThreads.length === 0) {
+                if (state.result.every(c => c.computed)) {
+                    elements.operationDisplay.innerHTML = `
+                        <div style="color: #059669; font-weight: 500;">✓ Kernel complete in ${state.currentCycle} cycles</div>
+                    `;
+                } else {
+                    elements.operationDisplay.innerHTML = '<div class="operation-idle">Press Start or Cycle to begin</div>';
+                }
+                return;
+            }
+            
+            const maxToShow = 12;
+            const ops = executingThreads.slice(0, maxToShow).map(t => {
+                const row = Math.floor(t.globalIdx / state.matrixSize);
+                const col = t.globalIdx % state.matrixSize;
+                const inputVal = state.matrix[t.globalIdx].value;
+                return `
+                    <div class="operation-item">
+                        <span class="thread-id">T${t.globalIdx}</span>
+                        B[${row}][${col}]=<span class="op-input">${inputVal}</span>×2+1=<span class="op-output">${compute(inputVal)}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            const moreCount = executingThreads.length - maxToShow;
+            const moreText = moreCount > 0 ? `<span style="color:#888;font-size:0.65rem;margin-left:8px;">+${moreCount} more</span>` : '';
+            
+            const activeWarps = state.sms.reduce((sum, sm) => 
+                sum + sm.warpSchedulers.filter(ws => ws.currentWarp).length, 0);
+            
+            elements.operationDisplay.innerHTML = `
+                <div class="operation-list">${ops}${moreText}</div>
+                <div class="operation-summary">
+                    Cycle ${state.currentCycle}: ${activeWarps} warp(s) × up to 32 threads = ${executingThreads.length} operations (SIMT)
+                </div>
+            `;
+        }
+
+        function updateStats() {
+            const allThreads = state.blocks.flatMap(b => b.warps.flatMap(w => w.threads));
+            const activeWarps = state.sms.reduce((sum, sm) => 
+                sum + sm.warpSchedulers.filter(ws => ws.currentWarp).length, 0);
+            const completedCells = state.result.filter(c => c.computed).length;
+            
+            elements.totalThreads.textContent = allThreads.length;
+            elements.activeWarps.textContent = activeWarps;
+            elements.completedCells.textContent = completedCells;
+            elements.currentCycle.textContent = state.currentCycle;
+        }
+
+        function log(message, highlight = false) {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${highlight ? 'highlight' : ''}`;
+            entry.textContent = `[Cycle ${state.currentCycle}] ${message}`;
+            elements.executionLog.appendChild(entry);
+            elements.executionLog.scrollTop = elements.executionLog.scrollHeight;
+        }
+
+        function start() {
+            if (state.blocks.every(b => b.status === 'completed')) {
+                init();
+            }
+            
+            state.isRunning = true;
+            elements.startBtn.textContent = '⏸ Pause';
+            elements.startBtn.onclick = pause;
+            
+            function animate() {
+                if (!state.isRunning) return;
+                step();
+                
+                if (!state.blocks.every(b => b.status === 'completed')) {
+                    state.animationId = setTimeout(animate, 500);
+                } else {
+                    stop();
+                }
+            }
+            animate();
+        }
+
+        function pause() {
+            state.isRunning = false;
+            elements.startBtn.textContent = '▶ Start';
+            elements.startBtn.onclick = start;
+            if (state.animationId) clearTimeout(state.animationId);
+        }
+
+        function stop() {
+            pause();
+        }
+
+        function reset() {
+            pause();
+            elements.executionLog.innerHTML = '';
+            init();
+        }
+
+        // Event Listeners
+        elements.matrixSize.addEventListener('input', (e) => {
+            elements.matrixSizeValue.textContent = `${e.target.value}×${e.target.value}`;
+        });
+        elements.matrixSize.addEventListener('change', reset);
+
+        elements.blockSize.addEventListener('input', (e) => {
+            elements.blockSizeValue.textContent = `${e.target.value}×${e.target.value}`;
+        });
+        elements.blockSize.addEventListener('change', reset);
+
+        elements.numSMs.addEventListener('input', (e) => {
+            elements.numSMsValue.textContent = e.target.value;
+        });
+        elements.numSMs.addEventListener('change', reset);
+
+        elements.warpsPerSM.addEventListener('input', (e) => {
+            elements.warpsPerSMValue.textContent = e.target.value;
+        });
+        elements.warpsPerSM.addEventListener('change', reset);
+
+        elements.startBtn.addEventListener('click', start);
+        elements.stepBtn.addEventListener('click', step);
+        elements.resetBtn.addEventListener('click', reset);
+
+        // Initialize
+        init();
+    </script>
+</body>
+</html>
